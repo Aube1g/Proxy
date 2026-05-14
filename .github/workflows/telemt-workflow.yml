@@ -1,0 +1,50 @@
+name: Download Telemt Binary
+
+on:
+  workflow_dispatch:
+
+jobs:
+  download:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download and extract Telemt
+        run: |
+          set -x
+
+          # Скачиваем install.sh и смотрим что он делает
+          curl -fsSL https://raw.githubusercontent.com/telemt/telemt/main/install.sh -o install.sh
+          cat install.sh | head -100
+
+          # Пробуем установить без интерактива
+          export TELEMT_INSTALL_NONINTERACTIVE=1
+          export TELEMT_INSTALL_SKIP_SYSTEMD=1
+          bash install.sh || true
+
+          # Ищем бинарник
+          find / -name "telemt" -type f 2>/dev/null | head -10
+
+          # Копируем если нашли
+          TELMT=$(find / -name "telemt" -type f 2>/dev/null | head -1)
+          if [ -n "$TELMT" ]; then
+            cp "$TELMT" ./telemt-linux-amd64
+            chmod +x ./telemt-linux-amd64
+            ls -la ./telemt-linux-amd64
+            file ./telemt-linux-amd64
+            ./telemt-linux-amd64 --version || true
+          else
+            echo "Binary not found"
+            exit 1
+          fi
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        if: success()
+        with:
+          tag_name: telemt-v${{ github.run_number }}
+          name: Telemt Binary ${{ github.run_number }}
+          body: |
+            Auto-downloaded Telemt binary for Linux AMD64
+            Downloaded from: https://github.com/telemt/telemt
+          files: telemt-linux-amd64
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
