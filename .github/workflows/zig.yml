@@ -12,31 +12,25 @@ jobs:
         with:
           repository: sleep3r/mtproto.zig
 
-      - name: Check Zig versions available
+      - name: Install Zig 0.16.0
         run: |
-          curl -s https://ziglang.org/download/index.json | head -100
+          # Правильная ссылка на Zig
+          curl -L https://ziglang.org/download/0.16.0/zig-x86_64-linux-0.16.0.tar.xz -o zig.tar.xz
 
-      - name: Install Zig
-        run: |
-          # Пробуем скачать 0.16.0
-          curl -L https://ziglang.org/download/0.16.0/zig-linux-x86_64-0.16.0.tar.xz -o zig.tar.xz ||           curl -L https://ziglang.org/builds/zig-linux-x86_64-0.16.0.tar.xz -o zig.tar.xz ||           curl -L https://ziglang.org/download/0.15.0/zig-linux-x86_64-0.15.0.tar.xz -o zig.tar.xz
-
+          # Проверяем
           ls -la zig.tar.xz
           file zig.tar.xz
 
           # Распаковываем
           tar -xf zig.tar.xz
-          ls -la
 
-          # Находим zig
-          find . -name "zig" -type f
-
-          # Устанавливаем
-          ZIG_DIR=$(find . -name "zig" -type f | head -1 | xargs dirname)
+          # Находим zig и добавляем в PATH
+          ZIG_BIN=$(find . -name "zig" -type f | head -1)
+          ZIG_DIR=$(dirname "$ZIG_BIN")
           echo "$ZIG_DIR" >> $GITHUB_PATH
           export PATH="$ZIG_DIR:$PATH"
 
-          # Проверяем
+          # Проверяем версию
           zig version
 
       - name: Build static binary
@@ -44,10 +38,28 @@ jobs:
           export PATH="$(find . -name 'zig' -type f | head -1 | xargs dirname):$PATH"
           zig version
 
-          # Пробуем собрать
-          zig build -Dtarget=x86_64-linux-musl -Doptimize=ReleaseSmall 2>&1 ||           zig build -Doptimize=ReleaseSmall 2>&1 ||           zig build 2>&1
+          # Собираем только основной бинарник (без mtbuddy, bench и т.д.)
+          zig build -Dtarget=x86_64-linux-musl -Doptimize=ReleaseSmall install 2>&1
 
-          ls -la zig-out/bin/ || ls -la
+          # Проверяем что собралось
+          ls -la zig-out/bin/ || true
+          find . -name "mtproto-proxy" -type f || true
+
+      - name: Check binary
+        run: |
+          # Ищем бинарник
+          BINARY=$(find . -name "mtproto-proxy" -type f | head -1)
+          if [ -n "$BINARY" ]; then
+            echo "Found: $BINARY"
+            file "$BINARY"
+            ls -la "$BINARY"
+            # Проверяем что статический
+            ldd "$BINARY" || true
+          else
+            echo "Binary not found, checking zig-out/"
+            ls -la zig-out/ || true
+            find . -type f -executable | head -20
+          fi
 
       - name: Upload artifact
         if: always()
@@ -56,4 +68,4 @@ jobs:
           name: mtproto-proxy-build
           path: |
             zig-out/bin/*
-            *.log
+            **/mtproto-proxy
