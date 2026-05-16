@@ -1,0 +1,32 @@
+name: Build mtproto.zig
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          repository: sleep3r/mtproto.zig
+
+      - name: Install Zig 0.16
+        run: |
+          curl -L https://ziglang.org/download/0.16.0/zig-linux-x86_64-0.16.0.tar.xz | tar -xJ
+          sudo mv zig-linux-x86_64-0.16.0 /opt/zig
+          echo "/opt/zig" >> $GITHUB_PATH
+
+      - name: Build static binary
+        run: |
+          export ZIG_GLOBAL_CACHE_DIR=/tmp/zig-cache
+          zig build -Dtarget=x86_64-linux-musl -Doptimize=ReleaseSmall
+          ls -la zig-out/bin/
+          file zig-out/bin/mtproto-proxy
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: mtproto-proxy-x86_64-musl
+          path: zig-out/bin/mtproto-proxy
